@@ -100,7 +100,7 @@
             archiveInfo.archiveFileName = fileName;
             archiveInfo.archiveFileType = ArchiveFileTypeXCARCHIVE;
             [self formatArchiveInfo:archiveInfo];
-        }else if([fileName hasSuffix:@".dSYM"]){
+        }else if([fileName hasSuffix:@".app.dSYM"]){
             archiveInfo.dSYMFilePath = filePath;
             archiveInfo.dSYMFileName = fileName;
             archiveInfo.archiveFileType = ArchiveFileTypeDSYM;
@@ -125,7 +125,7 @@
     NSArray *keys = @[@"NSURLPathKey",@"NSURLFileResourceTypeKey",@"NSURLIsDirectoryKey",@"NSURLIsPackageKey"];
     NSArray *dSYMSubFiles= [[NSFileManager defaultManager] contentsOfDirectoryAtURL:[NSURL fileURLWithPath:dSYMsDirectoryPath] includingPropertiesForKeys:keys options:(NSDirectoryEnumerationSkipsHiddenFiles | NSDirectoryEnumerationSkipsPackageDescendants) error:nil];
     for(NSURL *fileURLs in dSYMSubFiles){
-        if ([[fileURLs.relativePath lastPathComponent] hasSuffix:@"dSYM"]){
+        if ([[fileURLs.relativePath lastPathComponent] hasSuffix:@"app.dSYM"]){
             archiveInfo.dSYMFilePath = fileURLs.relativePath;
             archiveInfo.dSYMFileName = fileURLs.relativePath.lastPathComponent;
         }
@@ -377,11 +377,63 @@
     if([self.errorMemoryAddressLabel.stringValue isEqualToString:@""]){
         return;
     }
-
-    NSString *commandString = [NSString stringWithFormat:@"xcrun atos -arch %@ -o \"%@\" -l %@ %@", self.selectedUUIDInfo.arch, self.selectedUUIDInfo.executableFilePath, self.defaultSlideAddressLabel.stringValue, self.errorMemoryAddressLabel.stringValue];
+    /*
+     1.将上图crashLog中红1的0x0000000104ab9610转换为10进制
+     2.将转换后的值加上红2的3626512得到结果再转换为16进制，算出错误信息内存地址：0x104E2EC20填入输入框
+     */
+    
+    NSString *rechargeInfo =  [NSString stringWithFormat:@"%@",self.defaultSlideAddressLabel.stringValue];
+    NSLog(@"%@---%@",self.defaultSlideAddressLabel.stringValue,rechargeInfo);
+    NSString *cardId2 = [rechargeInfo substringFromIndex:2];
+    cardId2 = [NSString stringWithFormat:@"%ld",strtoul([cardId2 UTF8String],0,16)];
+    NSString *string =  [NSString stringWithFormat:@"%.0f",cardId2.doubleValue + self.errorMemoryAddressLabel.stringValue.doubleValue];
+    
+    NSString *commandString = [NSString stringWithFormat:@"xcrun atos -arch %@ -o \"%@\" -l %@ %@", self.selectedUUIDInfo.arch, self.selectedUUIDInfo.executableFilePath, self.defaultSlideAddressLabel.stringValue, [self getHexByDecimal:string.integerValue]];
     NSString *result = [self runCommand:commandString];
     [self.errorMessageView setString:result];
 }
+
+/**
+ 十进制转换十六进制
+ 
+ @param decimal 十进制数
+ @return 十六进制数
+ */
+- (NSString *)getHexByDecimal:(NSInteger)decimal {
+    
+    NSString *hex =@"";
+    NSString *letter;
+    NSInteger number;
+    for (int i = 0; i<9; i++) {
+        
+        number = decimal % 16;
+        decimal = decimal / 16;
+        switch (number) {
+                
+            case 10:
+                letter =@"A"; break;
+            case 11:
+                letter =@"B"; break;
+            case 12:
+                letter =@"C"; break;
+            case 13:
+                letter =@"D"; break;
+            case 14:
+                letter =@"E"; break;
+            case 15:
+                letter =@"F"; break;
+            default:
+                letter = [NSString stringWithFormat:@"%ld", number];
+        }
+        hex = [letter stringByAppendingString:hex];
+        if (decimal == 0) {
+            
+            break;
+        }
+    }
+    return [NSString stringWithFormat:@"0x%@",hex];
+}
+
 
 
 - (NSDragOperation)draggingEntered:(id <NSDraggingInfo>)sender{
